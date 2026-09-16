@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f172a">
+  <title>Buku Kas Tambang Sijunjuang</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div>
+      <div class="brand">Buku Kas Tambang Sijunjuang</div>
+      <div class="subtitle">Online + Local Storage</div>
+    </div>
+    <div class="top-actions">
+      <span id="connectionBadge" class="badge offline">Offline</span>
+      <span id="userBadge" class="badge">Belum login</span>
+      <button id="btnLogout" class="btn danger hidden">Keluar</button>
+    </div>
+  </header>
+
+  <div id="loginView" class="login-wrap">
+    <div class="card login-card">
+      <h1>Login</h1>
+      <p class="muted">Admin dapat menambah, mengubah, dan menghapus data. Viewer hanya dapat melihat data.</p>
+      <label>Email
+        <input id="loginEmail" type="email" autocomplete="username" placeholder="admin@email.com">
+      </label>
+      <label>Password
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">
+      </label>
+      <button id="btnLogin" class="btn primary full">Masuk</button>
+      <button id="btnLocalView" class="btn secondary full">Lihat Data Lokal di HP</button>
+      <p id="loginMsg" class="msg"></p>
+      <hr>
+      <small class="muted">Login online memakai Supabase Auth. Data cache tetap tersedia di Local Storage perangkat.</small>
+    </div>
+  </div>
+
+  <div id="mainView" class="hidden">
+    <aside class="sidebar">
+      <button class="nav active" data-page="home">⌂ Home</button>
+      <button class="nav" data-page="dashboard">▦ Dashboard</button>
+      <button class="nav" data-page="produksi">⛏ Produksi</button>
+      <button class="nav" data-page="keuangan">Rp Keuangan</button>
+      <button class="nav" data-page="grafik">▥ Grafik</button>
+      <button class="nav" data-page="laporan">▤ Laporan</button>
+      <button class="nav" data-page="backup">☁ Backup & Local Storage</button>
+      <button class="nav" data-page="pengaturan">⚙ Pengaturan</button>
+    </aside>
+
+    <main class="content">
+      <section id="page-home" class="page">
+        <div class="page-head">
+          <div><h2>Home</h2><p class="muted">Pusat akses database online dan penyimpanan lokal HP.</p></div>
+        </div>
+        <div class="grid cards">
+          <div class="stat"><span>Status online</span><strong id="homeOnline">Offline</strong></div>
+          <div class="stat"><span>Role</span><strong id="homeRole">Viewer lokal</strong></div>
+          <div class="stat"><span>Produksi lokal</span><strong id="homeProduksi">0</strong></div>
+          <div class="stat"><span>Transaksi lokal</span><strong id="homeKeuangan">0</strong></div>
+        </div>
+        <div class="grid home-grid">
+          <div class="card">
+            <h3>Database Online</h3>
+            <p class="muted">Semua komputer dan HP yang login ke project Supabase yang sama akan membaca database yang sama.</p>
+            <button id="btnSyncHome" class="btn primary">Sinkronkan Sekarang</button>
+            <span id="syncText" class="sync-text">Belum sinkron</span>
+          </div>
+          <div class="card">
+            <h3>Local Storage HP</h3>
+            <p class="muted">Cache lokal membuat data terakhir tetap bisa dilihat saat internet putus.</p>
+            <button class="btn secondary" data-page="backup">Kelola Local Storage</button>
+          </div>
+          <div class="card">
+            <h3>Mode Viewer</h3>
+            <p class="muted">Viewer tidak memiliki tombol tambah/edit/hapus. Data berasal dari database online atau cache lokal.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-dashboard" class="page hidden">
+        <div class="page-head"><div><h2>Dashboard</h2><p class="muted">Ringkasan produksi dan keuangan.</p></div></div>
+        <div class="grid cards">
+          <div class="stat"><span>Total produksi</span><strong id="dProduksi">0 kg</strong></div>
+          <div class="stat"><span>Total terjual</span><strong id="dTerjual">0 kg</strong></div>
+          <div class="stat"><span>Stok</span><strong id="dStok">0 kg</strong></div>
+          <div class="stat"><span>Pemasukan</span><strong id="dMasuk">Rp 0</strong></div>
+          <div class="stat"><span>Pengeluaran</span><strong id="dKeluar">Rp 0</strong></div>
+          <div class="stat"><span>Saldo</span><strong id="dSaldo">Rp 0</strong></div>
+        </div>
+      </section>
+
+      <section id="page-produksi" class="page hidden">
+        <div class="page-head">
+          <div><h2>Produksi</h2><p class="muted">Catat hasil produksi dan penjualan.</p></div>
+        </div>
+        <div id="adminProduksiForm" class="card">
+          <form id="produksiForm" class="form-grid">
+            <input type="hidden" id="prodId">
+            <label>Tanggal<input id="prodTanggal" type="date" required></label>
+            <label>Nama barang<input id="prodNama" required placeholder="Contoh: Emas / Material"></label>
+            <label>Produksi (kg)<input id="prodJumlah" type="number" min="0" step="0.01" required></label>
+            <label>Terjual (kg)<input id="prodTerjual" type="number" min="0" step="0.01" value="0" required></label>
+            <label class="span2">Keterangan<textarea id="prodKet" rows="2"></textarea></label>
+            <div class="form-actions span2"><button class="btn primary" type="submit">Simpan</button><button id="btnProdBatal" class="btn secondary" type="button">Batal</button></div>
+          </form>
+        </div>
+        <div class="card table-card">
+          <div class="toolbar"><input id="prodSearch" placeholder="Cari nama/keterangan..."><button id="btnProdExcel" class="btn secondary">Excel</button><button id="btnProdPrint" class="btn secondary">Cetak</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Barang</th><th>Produksi</th><th>Terjual</th><th>Stok</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="prodTable"></tbody></table></div>
+        </div>
+      </section>
+
+      <section id="page-keuangan" class="page hidden">
+        <div class="page-head"><div><h2>Keuangan</h2><p class="muted">Catat pemasukan dan pengeluaran.</p></div></div>
+        <div id="adminKeuanganForm" class="card">
+          <form id="keuanganForm" class="form-grid">
+            <input type="hidden" id="keuId">
+            <label>Tanggal<input id="keuTanggal" type="date" required></label>
+            <label>Jenis<select id="keuJenis"><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option></select></label>
+            <label>Kategori<input id="keuKategori" required placeholder="Contoh: Penjualan / BBM"></label>
+            <label>Jumlah (Rp)<input id="keuJumlah" type="number" min="0" step="1" required></label>
+            <label class="span2">Keterangan<textarea id="keuKet" rows="2"></textarea></label>
+            <div class="form-actions span2"><button class="btn primary" type="submit">Simpan</button><button id="btnKeuBatal" class="btn secondary" type="button">Batal</button></div>
+          </form>
+        </div>
+        <div class="card table-card">
+          <div class="toolbar"><input id="keuSearch" placeholder="Cari kategori/keterangan..."><button id="btnKeuExcel" class="btn secondary">Excel</button><button id="btnKeuPrint" class="btn secondary">Cetak</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Jumlah</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody id="keuTable"></tbody></table></div>
+        </div>
+      </section>
+
+      <section id="page-grafik" class="page hidden">
+        <div class="page-head"><div><h2>Grafik</h2><p class="muted">Visualisasi produksi dan arus kas.</p></div></div>
+        <div class="grid charts"><div class="card"><canvas id="chartProduksi"></canvas></div><div class="card"><canvas id="chartKeuangan"></canvas></div></div>
+      </section>
+
+      <section id="page-laporan" class="page hidden">
+        <div class="page-head"><div><h2>Laporan</h2><p class="muted">Filter data berdasarkan tanggal.</p></div></div>
+        <div class="card form-grid">
+          <label>Dari<input id="filterDari" type="date"></label>
+          <label>Sampai<input id="filterSampai" type="date"></label>
+          <div class="form-actions"><button id="btnFilter" class="btn primary">Terapkan</button><button id="btnFilterReset" class="btn secondary">Reset</button></div>
+        </div>
+        <div class="grid cards">
+          <div class="stat"><span>Produksi periode</span><strong id="rProduksi">0 kg</strong></div>
+          <div class="stat"><span>Terjual periode</span><strong id="rTerjual">0 kg</strong></div>
+          <div class="stat"><span>Masuk periode</span><strong id="rMasuk">Rp 0</strong></div>
+          <div class="stat"><span>Keluar periode</span><strong id="rKeluar">Rp 0</strong></div>
+        </div>
+      </section>
+
+      <section id="page-backup" class="page hidden">
+        <div class="page-head"><div><h2>Backup & Local Storage</h2><p class="muted">Kelola data lokal HP dan file cadangan.</p></div></div>
+        <div class="grid home-grid">
+          <div class="card">
+            <h3>Local Storage</h3>
+            <p>Data lokal: <b id="localCounts">0 produksi / 0 transaksi</b></p>
+            <button id="btnLocalSave" class="btn secondary">Simpan Cache Sekarang</button>
+            <button id="btnLocalClear" class="btn danger">Hapus Cache Lokal</button>
+          </div>
+          <div class="card">
+            <h3>Backup JSON</h3>
+            <button id="btnBackup" class="btn primary">Download Backup JSON</button>
+            <label class="file-label">Restore JSON<input id="restoreFile" type="file" accept=".json"></label>
+          </div>
+          <div class="card">
+            <h3>Online</h3>
+            <button id="btnSync" class="btn primary">Tarik & Sinkronkan Database</button>
+            <p id="backupMsg" class="msg"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-pengaturan" class="page hidden">
+        <div class="page-head"><div><h2>Pengaturan</h2><p class="muted">Konfigurasi akun dan aplikasi.</p></div></div>
+        <div class="grid home-grid">
+          <div class="card">
+            <h3>Akun</h3>
+            <p id="accountInfo">-</p>
+            <label>Password baru<input id="newPassword" type="password" minlength="6" placeholder="Minimal 6 karakter"></label>
+            <button id="btnPassword" class="btn secondary">Ubah Password</button>
+          </div>
+          <div class="card">
+            <h3>Status Database</h3>
+            <p id="dbInfo">Belum terhubung.</p>
+            <button id="btnTestDb" class="btn primary">Tes Koneksi</button>
+          </div>
+          <div class="card">
+            <h3>Konfigurasi</h3>
+            <p class="muted">Isi URL dan publishable/anon key Supabase di <code>config.js</code>. Jangan pernah memasukkan secret/service_role key ke browser.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
